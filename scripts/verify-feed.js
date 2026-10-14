@@ -1,0 +1,81 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();let count=0;const sessionIds={};
+const check=(v,m)=>{assert.ok(v,m);count++;console.log('✓ '+m)};
+const ids={student:'11111111-1111-4111-8111-111111111111',tutor:'22222222-2222-4222-8222-222222222222',other:'33333333-3333-4333-8333-333333333333',admin:'44444444-4444-4444-8444-444444444444'};
+async function as(role,id,sql,args=[]){await db.exec(`RESET ROLE; SET ROLE ${role};`);await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[id||'']);await db.query("SELECT set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:id,session_id:sessionIds[id],amr:[{method:'password'}]})]);return db.query(sql,args)}
+async function denied(fn,m){let rejected=false;try{await fn()}catch{rejected=true}check(rejected,m)}
+try{
+ await db.exec(`CREATE ROLE anon; CREATE ROLE supabase_auth_admin; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE SCHEMA auth; CREATE SCHEMA storage; GRANT USAGE ON SCHEMA auth,storage,public TO anon,authenticated,service_role;
+ CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,raw_user_meta_data jsonb DEFAULT '{}',raw_app_meta_data jsonb DEFAULT '{}');
+ CREATE TABLE auth.sessions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE);
+ CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb) $$;
+ CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+ CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+ CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text REFERENCES storage.buckets(id),name text,UNIQUE(bucket_id,name));ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;GRANT SELECT,INSERT,DELETE ON storage.objects TO anon,authenticated;`);
+ await db.exec('GRANT USAGE ON SCHEMA auth TO supabase_auth_admin; GRANT INSERT ON auth.users TO supabase_auth_admin;');
+
+ await db.exec(readFileSync('supabase/schema.sql','utf8'));
+ const feature=readFileSync('supabase/feed-and-profiles.sql','utf8');await db.exec(feature);await db.exec(feature);check(true,'Feed schema executes and reruns safely');
+ await db.exec('SET ROLE supabase_auth_admin');
+ for(const [role,id] of Object.entries(ids)){await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)',[id,`${role}@example.test`,JSON.stringify({name:`Test ${role}`,role:role==='other'?'tutor':role})])}
+ await db.exec('RESET ROLE');for(const id of Object.values(ids)){sessionIds[id]=(await db.query('INSERT INTO auth.sessions(user_id) VALUES($1) RETURNING id',[id])).rows[0].id}
+ await db.query("UPDATE public.tm_accounts SET role='admin' WHERE id=$1",[ids.admin]);
+ const body={name:'Test Tutor',university:'University',education:'Mathematics',district:'Dhaka',areas:'Dhanmondi',subjects:['Mathematics'],classes:['Class 9–10 / SSC'],modes:['Online'],days:['Sunday'],fee:6000,experience:'3 years',time:'Evening',medium:'Bangla & English',aboutEn:'Available for evening Mathematics tuition.',aboutBn:'',available:true};
+ await denied(()=>as('anon',null,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Anonymous visitors cannot publish profiles');
+ await denied(()=>as('authenticated',ids.student,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Students cannot publish tutor identities');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,false)',[body]),'Sharing requires explicit consent');
+ let profile=(await as('authenticated',ids.tutor,'SELECT * FROM public.tm_save_shared_profile($1,false,false)',[body])).rows[0];
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Private drafts do not appear in the feed');
+ profile=(await as('authenticated',ids.tutor,'SELECT * FROM public.tm_save_shared_profile($1,true,true)',[body])).rows[0];
+ check(profile.feed_visible&&profile.status==='pending','Shared identity appears immediately and retains admin review status');
+ let feed=(await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result;
+ const post=feed[0];check(feed.length===1&&post.profile.name===body.name,'Visitors see compact teaching identity data');
+ check(!post.profile.email&&!post.profile.phone&&!post.profile.user_id,'Feed excludes private contact and account identity data');
+ check((await as('anon',null,'SELECT * FROM public.tm_tutor_profiles')).rows.length===1,'Students can open explicitly shared profile details before review');
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[{...body,name:'Edited Tutor'}]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===1,'Editing teaching details updates the identity without duplicate posts');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_react_post($1,true)',[post.id]),'Owners cannot inflate reactions on their own posts');
+ await denied(()=>as('anon',null,'SELECT public.tm_react_post($1,true)',[post.id]),'Anonymous visitors cannot create reactions');
+ await as('authenticated',ids.student,'SELECT public.tm_react_post($1,true)',[post.id]);await as('authenticated',ids.student,'SELECT public.tm_react_post($1,true)',[post.id]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result[0].reactions===1,'Repeated reactions from one person count only once');
+ const visitor='99999999-9999-4999-8999-999999999999';
+ await as('authenticated',ids.tutor,"SELECT public.tm_record_view('post',$1,$2)",[post.id,visitor]);
+ await as('authenticated',ids.student,"SELECT public.tm_record_view('post',$1,$2)",[post.id,visitor]);await as('authenticated',ids.student,"SELECT public.tm_record_view('post',$1,$2)",[post.id,ids.other]);
+ await as('anon',null,"SELECT public.tm_record_view('profile',$1,$2)",[profile.id,visitor]);await as('anon',null,"SELECT public.tm_record_view('profile',$1,$2)",[profile.id,visitor]);
+ let analytics=(await as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics() AS result')).rows[0].result;
+ check(analytics.posts[0].views===1&&analytics.profileViews===1,'Unique post/profile visits are counted, owner visits and refresh duplicates excluded');
+ check(analytics.posts[0].reactions===1,'Owner sees real per-post reaction totals');
+ check((await as('authenticated',ids.other,'SELECT public.tm_my_post_analytics() AS result')).rows[0].result.posts.length===0,'Other tutors cannot access an owner’s analytics');
+ await denied(()=>as('anon',null,'SELECT * FROM tm_private.tm_feed_views'),'Raw visitor events are not public');
+ await denied(()=>as('authenticated',ids.student,'SELECT * FROM tm_private.tm_feed_reactions'),'Raw reactor identity records are not exposed to students');
+ await denied(()=>as('authenticated',ids.other,'SELECT public.tm_edit_post($1,$2)',[post.id,'Another account trying to alter this post.']),'Other people cannot edit posts');
+ await as('authenticated',ids.tutor,'SELECT public.tm_edit_post($1,$2)',[post.id,'Updated introduction for local tuition students.']);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result[0].body.startsWith('Updated'),'Owners can edit their posts');
+ await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,false)',[post.id]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Hiding a post removes it from the public feed');
+ await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,true)',[post.id]);
+ await as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()');
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Hide profile removes all its feed posts');
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]);
+ await as('authenticated',ids.admin,"SELECT public.tm_review_tutor($1,'rejected','Please clarify your education.')",[profile.id]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Admin rejection removes shared posts and public details');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Rejected profile cannot be republished until admin review');
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,false,false)',[body]);
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Saving a private draft cannot bypass an admin rejection');
+ await as('authenticated',ids.admin,"SELECT public.tm_review_tutor($1,'approved','')",[profile.id]);
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]);
+ await as('authenticated',ids.student,'SELECT public.tm_react_post($1,false)',[post.id]);
+ check((await as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics() AS result')).rows[0].result.posts[0].reactions===0,'Removing a reaction updates the real count');
+ const photoPath=ids.tutor+'/teaching.webp';
+ await as('authenticated',ids.tutor,"INSERT INTO storage.objects(bucket_id,name) VALUES('tm-profile-photos',$1)",[photoPath]);
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[{...body,photo_path:photoPath}]);
+ check((await as('anon',null,'SELECT * FROM storage.objects')).rows[0].name===photoPath,'Explicitly shared teaching photo is readable without exposing private account photos');
+ await as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()');
+ check((await as('anon',null,'SELECT * FROM storage.objects')).rows.length===0,'Hiding an unapproved teaching identity removes public photo access');
+ await db.exec('RESET ROLE');await db.exec("UPDATE tm_private.tm_auth_config SET email_code_enabled=true WHERE id");
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics()'),'Unverified sessions cannot read private engagement analytics');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Unverified sessions cannot bypass email verification to share profiles');
+ console.log(`\n${count} feed, analytics, privacy and moderation checks passed.`);
+}catch(e){console.error('Feed verification failed:',e.message);process.exitCode=1}finally{await db.close()}

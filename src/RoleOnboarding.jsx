@@ -1,0 +1,6 @@
+import {useState} from 'react'
+import {api} from './lib/data.js'
+export default function RoleOnboarding({user,onComplete}){
+ const [role,setRole]=useState('student'),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ return <section className="panel role-onboarding"><span className="eyebrow">WELCOME TO TUTORMELA</span><h2>How will you use your account?</h2><p>Your name and email are already connected. Choose what you’re here to do.</p><div className="onboarding-roles">{[['student','Student / guardian','Find tutors and send tuition requests.'],['tutor','Tutor','Publish a profile and share teaching availability.']].map(([value,label,description])=><button key={value} aria-pressed={role===value} className={role===value?'active':''} onClick={()=>setRole(value)}><strong>{label}</strong><span>{description}</span></button>)}</div>{error&&<p className="form-error" role="alert">{error}</p>}<button disabled={busy} className="btn primary" onClick={async()=>{setBusy(true);try{const r=await api('/account/role','POST',{role});await onComplete(r.user)}catch(e){setError(e.message)}finally{setBusy(false)}}}>{busy?'Setting up…':'Continue to your profile'}</button><small>Signed in as {user.email}</small></section>
+}

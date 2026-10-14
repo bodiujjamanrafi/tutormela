@@ -1,0 +1,8 @@
+// Static production host. Application data and authentication go directly to Supabase.
+import http from 'node:http';
+import {readFileSync,existsSync,statSync} from 'node:fs';
+import {resolve,dirname,extname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const dist=resolve(dirname(fileURLToPath(import.meta.url)),'../dist');
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.ttf':'font/ttf','.woff2':'font/woff2'};
+http.createServer((req,res)=>{try{const url=new URL(req.url,'http://localhost');if(url.pathname.startsWith('/api/')){res.writeHead(410,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'The local data API has been retired. This site uses Supabase.'}));return}let path=resolve(dist,decodeURIComponent(url.pathname).slice(1)||'index.html');if(!path.startsWith(dist+'/')){res.writeHead(403);res.end();return}if(!existsSync(path)||!statSync(path).isFile())path=resolve(dist,'index.html');res.writeHead(200,{'Content-Type':types[extname(path)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin','Content-Security-Policy':"default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"});res.end(readFileSync(path))}catch{res.writeHead(500);res.end('Build the site with npm run build before starting this server.')}}).listen(Number(process.env.PORT||3001),'127.0.0.1',()=>console.log('Tutormela static host: http://127.0.0.1:'+String(process.env.PORT||3001)));
