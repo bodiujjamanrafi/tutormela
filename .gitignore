@@ -30,4 +30,5 @@ data/*.sqlite*
 !.env.example
 .temp
 supabase/.temp
+.vercel
 
