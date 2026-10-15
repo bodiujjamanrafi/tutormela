@@ -1,0 +1,39 @@
+/* Scoped header and footer refinements. */
+html,body{max-width:100%;overflow-x:clip;overscroll-behavior-x:none}
+body{min-width:0;touch-action:pan-y}
+#root,main,.site-header,.site-footer{min-width:0;max-width:100%}
+.site-header .header-inner{min-width:0}
+.site-header .account-button{flex-shrink:0}
+.site-header .mini-avatar{width:34px;height:34px;flex-shrink:0;overflow:hidden}
+.site-header .mini-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.site-header .mobile-menu,.site-header .mobile-menu:hover,.site-header .mobile-menu:focus,.site-header .mobile-menu:active{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-appearance:none;appearance:none}
+.site-header .mobile-menu{width:34px;height:40px;padding:5px;flex-shrink:0}
+.site-header .mobile-menu:focus-visible{outline:2px solid #ffd875;outline-offset:2px}
+.menu-lines{display:flex;position:relative;width:22px;height:18px;flex-direction:column;justify-content:space-between}
+.menu-lines>span{height:1.5px;width:100%;border-radius:2px;background:currentColor;transform-origin:center;transition:transform .26s ease,opacity .18s ease}
+.mobile-menu[aria-expanded=true] .menu-lines>span:first-child{transform:translateY(8.25px) rotate(45deg)}
+.mobile-menu[aria-expanded=true] .menu-lines>span:nth-child(2){opacity:0;transform:scaleX(.4)}
+.mobile-menu[aria-expanded=true] .menu-lines>span:last-child{transform:translateY(-8.25px) rotate(-45deg)}
+.site-footer .footer-inner{gap:28px;flex-wrap:wrap;padding-top:30px;padding-bottom:30px}
+.site-footer .brand{font-family:'Source Serif 4',Georgia,serif;font-size:30px;color:#244b40;letter-spacing:-1px}
+.site-footer .education-mark{color:#246653;margin-right:9px}
+.site-footer .education-mark svg{width:32px;height:32px;filter:none}
+.site-footer .footer-inner p{font-size:14px;line-height:1.7;margin-top:10px}
+.site-footer .footer-links{font-size:13px;min-width:0}
+.site-footer .footer-links nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:12px 24px;font-size:14px}
+.site-footer .footer-links a:hover{color:var(--teal)}
+.site-footer .footer-links button{font-size:13px}
+.site-footer .footer-links>div{flex-wrap:wrap;gap:12px 24px}
+@media(max-width:700px){
+ .site-header .header-inner nav{display:flex;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(-8px);transition:opacity .22s ease,transform .26s ease,visibility .26s;flex-direction:column;align-items:stretch}
+ .site-header .header-inner nav.open{visibility:visible;opacity:1;pointer-events:auto;transform:translateY(0)}
+ .site-footer .footer-inner{align-items:flex-start;gap:25px}
+ .site-footer .footer-links{width:100%;text-align:left}
+ .site-footer .footer-links nav,.site-footer .footer-links>div{justify-content:flex-start}
+ .site-footer .footer-links nav{font-size:15px;gap:14px 24px}
+ .site-footer .footer-links button,.site-footer .footer-links>div{font-size:14px}
+}
+@media(max-width:380px){.site-header .header-inner{padding-inline:12px;gap:8px}.site-header .header-actions{gap:7px}.site-header .brand{font-size:24px}.site-header .education-mark{margin-right:5px}.site-header .education-mark svg{width:22px;height:22px}}
+@media(prefers-reduced-motion:reduce){.menu-lines>span,.site-header .header-inner nav{transition:none}}
+
+@media(max-width:700px){input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea{font-size:16px}}

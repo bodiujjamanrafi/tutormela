@@ -1,3 +1,4 @@
+import {resolveAccountRole} from './account-role.js'
 import {matchesTutorPost,sortTutorPosts} from './tutor-posts.js'
 import { passwordSignIn } from './email-auth.js'
 import { requireSupabase } from './supabase.js'
@@ -41,7 +42,12 @@ async function beginEmailVerification(body){
  try{const r=await signupCode('start',body);if(!r.sent||!r.ticket)throw new Error('The verification email was not sent. Please try again.');return {verificationRequired:true,email:body.email.trim(),signupTicket:r.ticket}}
  catch(error){if(error.ticket)return {verificationRequired:true,email:body.email.trim(),signupTicket:error.ticket,deliveryError:error.message};throw error}
 }
-async function me(){const auth=await getIdentity();if(!auth||!await sessionReady())return null;const account=checked(await requireSupabase().from('tm_accounts').select('*').eq('id',auth.id).single());return {...account,email:auth.email,photo:await signedPhoto(account.photo_path)}}
+function googleAccountPhoto(auth){
+ const identity=auth.identities?.find(item=>item.provider==='google')
+ try{const url=new URL(identity?.identity_data?.picture||identity?.identity_data?.avatar_url||'');return url.protocol==='https:'&&(url.hostname==='googleusercontent.com'||url.hostname.endsWith('.googleusercontent.com'))?url.href:''}catch{return ''}
+}
+async function accountForRole(requestedRole){return resolveAccountRole({account:await me(),requestedRole,chooseRole:role=>rpc('tm_choose_account_role',{p_role:role}),reload:me})}
+async function me(){const auth=await getIdentity();if(!auth||!await sessionReady())return null;const account=checked(await requireSupabase().from('tm_accounts').select('*').eq('id',auth.id).single());return {...account,email:auth.email,photo:await signedPhoto(account.photo_path)||googleAccountPhoto(auth)}}
 async function profile(row){if(!row)return null;return {...row,photo:await signedPhoto(row.photo_path),aboutEn:row.about_en,aboutBn:row.about_bn,sample:false,created:row.created_at,reason:''}}
 async function uploadPhoto(dataUrl,userId){
  if(!dataUrl?.startsWith('data:image/'))return null
@@ -114,18 +120,18 @@ export async function api(path,method='GET',body){
  if(path==='/analytics')return rpc('tm_my_post_analytics')
  if(path==='/profile/hide'){await rpc('tm_hide_feed_profile');return {ok:true}}
  if(path==='/me'){try{await assertReady()}catch{}const auth=await getIdentity();if(!auth)return {user:null};if(!await sessionReady())return {user:null,verificationRequired:true,email:auth.email};return {user:await me()}}
- if(path==='/auth/login'){await assertReady();return passwordSignIn({auth:s.auth,codeEnabled:()=>rpc('tm_email_code_enabled'),sendCode:()=>emailCode('send'),confirmEmail:credentials=>beginEmailVerification({...credentials,intent:'confirm'}),currentUser:me},body)}
+ if(path==='/auth/login'){await assertReady();return passwordSignIn({auth:s.auth,codeEnabled:()=>rpc('tm_email_code_enabled'),sendCode:()=>emailCode('send'),confirmEmail:credentials=>beginEmailVerification({...credentials,intent:'confirm'}),currentUser:()=>accountForRole(body.role)},body)}
  if(path==='/auth/register'){await assertReady();return beginEmailVerification({...body,intent:'register'})}
  if(path==='/auth/social'&&body.provider==='google'){
   const [{googleCredential,clearFirebaseSignIn},{firebaseGoogleSession}]=await Promise.all([import('./firebase.js'),import('./google-auth-flow.js')]);
   const authenticated=await firebaseGoogleSession({checkProvider:async()=>{const response=await fetch(import.meta.env.VITE_SUPABASE_URL+'/auth/v1/settings',{headers:{apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}});if(!response.ok)throw new Error('Sign-in is temporarily unavailable. Please try again.');const settings=await response.json();if(settings.external?.google!==true)throw new Error('Google sign-in is not active for Tutormela yet. Please use email sign-in until Google is enabled.')},getCredential:googleCredential,exchange:credentials=>s.auth.signInWithIdToken(credentials),verifyUser:token=>s.auth.getUser(token),clear:clearFirebaseSignIn});
   let account=await me();if(!account||account.id!==authenticated.user.id)throw new Error('Your Google account could not be matched to your website account. Please sign in again.');
-  if(account.onboarding_complete===false){await rpc('tm_choose_account_role',{p_role:body.role==='tutor'?'tutor':'student'});account=await me()}
+  account=await resolveAccountRole({account,requestedRole:body.role,chooseRole:role=>rpc('tm_choose_account_role',{p_role:role}),reload:me})
   if(!account||account.id!==authenticated.user.id)throw new Error('Your sign-in account changed. Please sign in again.');sessionStorage.removeItem('tm_oauth_role');return {user:account}
  }
  if(path==='/auth/social'){if(!['google','facebook'].includes(body.provider))throw new Error('Choose Google or Facebook.');const response=await fetch(import.meta.env.VITE_SUPABASE_URL+'/auth/v1/settings',{headers:{apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}});if(!response.ok)throw new Error('Sign-in is temporarily unavailable.');const settings=await response.json();if(!settings.external?.[body.provider])throw new Error(`${body.provider==='google'?'Google':'Facebook'} sign-in is currently unavailable. Please use email sign-in.`);sessionStorage.setItem('tm_oauth_role',body.role||'student');checked(await s.auth.signInWithOAuth({provider:body.provider,options:{redirectTo:window.location.origin+'/#/dashboard',...(body.provider==='facebook'?{scopes:'email'}:{})}}));return {redirecting:true}}
  if(path==='/auth/code/send')return body?.signupTicket?signupCode('resend',{ticket:body.signupTicket}):emailCode('send')
- if(path==='/auth/code/verify'){const r=body.signupTicket?await signupCode('verify',{ticket:body.signupTicket,code:body.code}):await emailCode('verify',body.code);if(!r.verified)throw new Error(r.error||'This code could not be verified.');if(r.session)checked(await s.auth.setSession(r.session));return {user:await me()}}
+ if(path==='/auth/code/verify'){const r=body.signupTicket?await signupCode('verify',{ticket:body.signupTicket,code:body.code}):await emailCode('verify',body.code);if(!r.verified)throw new Error(r.error||'This code could not be verified.');if(r.session)checked(await s.auth.setSession(r.session));return {user:await accountForRole(body.role)}}
  if(path==='/account/role'){await rpc('tm_choose_account_role',{p_role:body.role});sessionStorage.removeItem('tm_oauth_role');return {user:await me()}}
  if(path.startsWith('/statuses?')){const params=new URLSearchParams(path.split('?')[1]);let query=s.from('tm_tutor_statuses').select('*').eq('profile_id',params.get('profile')).order('created_at',{ascending:false}).limit(30);if(params.get('owner')!=='1')query=query.is('withdrawn_at',null);return checked(await query)}
  if(path==='/statuses'&&method==='POST'){const quota=await rpc('tm_post_quota');if(!quota.canPost)throw new Error('Your posting allowance is used. View plans to publish more.');await rpc('tm_post_tutor_status',{p_body:body.body,p_consent:body.consent});return {ok:true}}

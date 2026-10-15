@@ -123,6 +123,17 @@ try{
  await denied(()=>db.query("SELECT public.tm_choose_account_role('admin')"),'Social onboarding cannot grant administrator access');
  await db.query("SELECT public.tm_choose_account_role('tutor')");
  check((await db.query('SELECT role FROM public.tm_accounts')).rows[0].role==='tutor','Social accounts can choose the tutor workflow');
- await denied(()=>db.query("SELECT public.tm_choose_account_role('student')"),'Account-type onboarding cannot be reused to switch permissions');
+ await db.query("SELECT public.tm_choose_account_role('student')");
+ check((await db.query('SELECT role FROM public.tm_accounts')).rows[0].role==='tutor','Student sign-in does not downgrade an existing tutor');
+ await db.exec('RESET ROLE');await db.query("UPDATE public.tm_accounts SET role='student',onboarding_complete=true WHERE id=$1",[socialId]);
+ await as('authenticated',socialId,'SELECT 1');await db.query("SELECT set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:socialId,session_id:sessionIds[socialId],amr:[{method:'oauth'}]})]);
+ await db.query("SELECT public.tm_choose_account_role('tutor')");
+ check((await db.query('SELECT role FROM public.tm_accounts')).rows[0].role==='tutor','Returning student can explicitly activate their own tutor account');
+ await db.query("SELECT public.tm_choose_account_role('tutor')");
+ await denied(()=>db.query('SELECT public.tm_choose_account_role(NULL)'),'Null account type cannot bypass validation');
+ await denied(()=>as('anon',null,"SELECT public.tm_choose_account_role('tutor')"),'Anonymous users cannot select an account role');
+ await as('authenticated',ids.admin,'SELECT 1');await db.query("SELECT set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:ids.admin,session_id:sessionIds[ids.admin],amr:[{method:'oauth'}]})]);
+ await db.query("SELECT public.tm_choose_account_role('student')");
+ check((await db.query('SELECT role FROM public.tm_accounts')).rows[0].role==='admin','Existing administrator role stays unchanged');
  console.log(`\n${count} schema, access-control and workflow checks passed.`);
 }catch(e){console.error('Verification failed:',e.message);process.exitCode=1}finally{await db.close()}
