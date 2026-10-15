@@ -17,7 +17,7 @@ try{
  await db.exec('GRANT USAGE ON SCHEMA auth TO supabase_auth_admin; GRANT INSERT ON auth.users TO supabase_auth_admin;');
 
  await db.exec(readFileSync('supabase/schema.sql','utf8'));
- const feature=readFileSync('supabase/feed-and-profiles.sql','utf8');await db.exec(feature);await db.exec(feature);check(true,'Feed schema executes and reruns safely');
+ const feature=readFileSync('supabase/feed-and-profiles.sql','utf8');await db.exec(feature);await db.exec(feature);const community=readFileSync('supabase/community-social.sql','utf8');await db.exec(community);await db.exec(community);check(true,'Feed and social rules execute and rerun safely');
  await db.exec('SET ROLE supabase_auth_admin');
  for(const [role,id] of Object.entries(ids)){await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)',[id,`${role}@example.test`,JSON.stringify({name:`Test ${role}`,role:role==='other'?'tutor':role})])}
  await db.exec('RESET ROLE');for(const id of Object.values(ids)){sessionIds[id]=(await db.query('INSERT INTO auth.sessions(user_id) VALUES($1) RETURNING id',[id])).rows[0].id}
@@ -36,7 +36,7 @@ try{
  check((await as('anon',null,'SELECT * FROM public.tm_tutor_profiles')).rows.length===1,'Students can open explicitly shared profile details before review');
  await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[{...body,name:'Edited Tutor'}]);
  check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===1,'Editing teaching details updates the identity without duplicate posts');
- await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_react_post($1,true)',[post.id]),'Owners cannot inflate reactions on their own posts');
+ check((await as('authenticated',ids.tutor,'SELECT public.tm_react_post($1,true) AS n',[post.id])).rows[0].n===1,'Tutors can like their own post once, like any other signed-in user');await as('authenticated',ids.tutor,'SELECT public.tm_react_post($1,false)',[post.id]);
  await denied(()=>as('anon',null,'SELECT public.tm_react_post($1,true)',[post.id]),'Anonymous visitors cannot create reactions');
  await as('authenticated',ids.student,'SELECT public.tm_react_post($1,true)',[post.id]);await as('authenticated',ids.student,'SELECT public.tm_react_post($1,true)',[post.id]);
  check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result[0].reactions===1,'Repeated reactions from one person count only once');
@@ -53,11 +53,18 @@ try{
  await denied(()=>as('authenticated',ids.other,'SELECT public.tm_edit_post($1,$2)',[post.id,'Another account trying to alter this post.']),'Other people cannot edit posts');
  await as('authenticated',ids.tutor,'SELECT public.tm_edit_post($1,$2)',[post.id,'Updated introduction for local tuition students.']);
  check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result[0].body.startsWith('Updated'),'Owners can edit their posts');
- await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,false)',[post.id]);
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,false)',[post.id]),'Tutor owners cannot remove published posts');
+ await as('authenticated',ids.admin,'SELECT public.tm_set_status_visibility($1,false)',[post.id]);
  check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Hiding a post removes it from the public feed');
- await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,true)',[post.id]);
- await as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()');
- check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Hide profile removes all its feed posts');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,true)',[post.id]),'Tutor owners cannot restore admin-removed posts');
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Editing the profile does not restore an admin-removed identity post');
+ await as('authenticated',ids.admin,'SELECT public.tm_set_status_visibility($1,true)',[post.id]);
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()'),'Owners cannot hide shared profiles');
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===1,'Published posts remain visible after an attempted owner withdrawal');
+ await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,false,false)',[body]);
+ check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===1,'Saving a previously shared profile never silently hides its posts');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_tutor($1,false)',[body]),'The legacy draft endpoint cannot hide an already shared profile');
  await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]);
  await as('authenticated',ids.admin,"SELECT public.tm_review_tutor($1,'rejected','Please clarify your education.')",[profile.id]);
  check((await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result.length===0,'Admin rejection removes shared posts and public details');
@@ -72,8 +79,34 @@ try{
  await as('authenticated',ids.tutor,"INSERT INTO storage.objects(bucket_id,name) VALUES('tm-profile-photos',$1)",[photoPath]);
  await as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[{...body,photo_path:photoPath}]);
  check((await as('anon',null,'SELECT * FROM storage.objects')).rows[0].name===photoPath,'Explicitly shared teaching photo is readable without exposing private account photos');
- await as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()');
- check((await as('anon',null,'SELECT * FROM storage.objects')).rows.length===0,'Hiding an unapproved teaching identity removes public photo access');
+ await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_hide_feed_profile()'),'Photo owner cannot silently unpublish feed content');
+ await as('authenticated',ids.admin,"SELECT public.tm_review_tutor($1,'rejected','Removed after admin review.')",[profile.id]);
+ check((await as('anon',null,'SELECT * FROM storage.objects')).rows.length===0,'Admin rejection still removes public photo access');
+ await as('authenticated',ids.admin,"SELECT public.tm_review_tutor($1,'approved','')",[profile.id]);
+
+ await denied(()=>as('authenticated',ids.student,'SELECT public.tm_admin_posts()'),'Students cannot access moderation records');
+ await denied(()=>as('anon',null,'SELECT public.tm_admin_posts()'),'Visitors cannot access moderation records');
+ check((await as('authenticated',ids.admin,'SELECT public.tm_admin_posts() AS result')).rows[0].result.length===1,'Admins can inspect retained posts for removal/restoration');
+ const second=(await as('authenticated',ids.other,'SELECT * FROM public.tm_save_shared_profile($1,true,true)',[{...body,name:'Another account tutor'}])).rows[0];
+ await db.exec('RESET ROLE');await db.query("UPDATE public.tm_tutor_statuses SET created_at=now()-interval '3 years' WHERE profile_id=$1",[second.id]);
+ for(const [role,id] of [['anon',null],['authenticated',ids.student],['authenticated',ids.tutor],['authenticated',ids.other]]){
+  const rows=(await as(role,id,'SELECT public.tm_feed() AS result')).rows[0].result;
+  check(rows.length===2&&rows.some(p=>p.profile.id===second.id),'Feed includes all accounts and old posts for '+(id||'signed-out visitors'));
+ }
+ await as('authenticated',ids.other,'SELECT public.tm_react_post($1,true)',[post.id]);
+ const totals=(await as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics() AS result')).rows[0].result;
+ check(totals.posts.some(p=>p.id===post.id&&p.reactions===1),'Posted tutor sees likes from another tutor in private analytics');
+ await as('authenticated',ids.student,"SELECT public.tm_record_view('profile',$1,$2)",[profile.id,visitor]);
+ await as('authenticated',ids.student,"SELECT public.tm_record_view('profile',$1,$2)",[profile.id,visitor]);
+ await as('authenticated',ids.other,"SELECT public.tm_record_view('profile',$1,$2)",[profile.id,visitor]);
+ check((await as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics() AS result')).rows[0].result.profileViews===3,'Distinct student and tutor profile visits are persisted once per person');
+ await db.exec('RESET ROLE');
+ await db.query("SELECT set_config('request.jwt.claim.sub','',false)");
+ for(let i=0;i<24;i++)await db.query("INSERT INTO public.tm_tutor_statuses(user_id,profile_id,body) VALUES($1,$2,$3)",[ids.other,second.id,'Persisted teaching update number '+i]);
+ const first=(await as('anon',null,'SELECT public.tm_feed() AS result')).rows[0].result,last=first.at(-1);
+ const next=(await as('anon',null,'SELECT public.tm_feed($1,$2) AS result',[last.created_at,last.id])).rows[0].result;
+ check(first.length===20&&next.length===6&&new Set([...first,...next].map(p=>p.id)).size===26,'Pagination retains old posts without duplicates or an account filter');
+ await denied(()=>as('authenticated',ids.student,'DELETE FROM public.tm_tutor_statuses'),'Clients cannot delete persisted posts directly');
  await db.exec('RESET ROLE');await db.exec("UPDATE tm_private.tm_auth_config SET email_code_enabled=true WHERE id");
  await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_my_post_analytics()'),'Unverified sessions cannot read private engagement analytics');
  await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_save_shared_profile($1,true,true)',[body]),'Unverified sessions cannot bypass email verification to share profiles');

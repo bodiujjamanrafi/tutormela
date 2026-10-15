@@ -243,3 +243,5 @@ body:has(.auth-premium[open]){overflow:hidden}
 .signup-confirmation-notice{padding:12px;border:1px solid #dce7df;background:#f6f9f5;border-radius:5px;font-size:12px;line-height:1.65;color:#526b57;overflow-wrap:anywhere}.signup-confirmation-notice .confirmation-recipient{margin:8px 0;font-size:11px}.signup-confirmation-notice strong{font-weight:500}.signup-confirmation-notice .text-btn{font-size:11px;text-align:left}
 
 .auth-premium:has(.confirmation-recipient) .auth-role-heading,.auth-premium:has(.confirmation-recipient) .role-choice,.auth-premium:has(.confirmation-recipient) .form-note{display:none}
+.auth-premium .social-signin-error{margin:0 28px 14px;padding:11px 13px;border:1px solid #ead8d1;border-radius:7px;background:#fff7f3;color:#855e4b;font-size:12px;line-height:1.7}
+@media(max-width:620px){.auth-premium .social-signin-error{margin-inline:21px;font-size:11px}}

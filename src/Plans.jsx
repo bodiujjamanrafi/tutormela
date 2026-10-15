@@ -1,0 +1,24 @@
+import {useState,useEffect} from 'react'
+import {api} from './lib/data.js'
+import './Plans.css'
+import './Subscription.css'
+import subscriptionBackground from './assets/subscription/pinterest-background-original.jpg'
+const catalogue=[{id:'starter',name:'Starter',price_bdt:300,post_limit:6},{id:'growth',name:'Growth',price_bdt:500,post_limit:15},{id:'professional',name:'Professional',price_bdt:800,post_limit:30}]
+const offers={starter:['4 more posts than the free allowance','৳50 per post at full use'],growth:['13 more posts than the free allowance','About ৳33 per post at full use'],professional:['28 more posts than the free allowance','About ৳27 per post at full use']}
+export default function Plans({user,onSignIn,page=false}){
+ const [plans,setPlans]=useState(catalogue),[busy,setBusy]=useState(''),[error,setError]=useState('')
+ useEffect(()=>{let active=true;api('/plans').then(rows=>{if(active&&rows.length===3)setPlans(rows)}).catch(()=>{});return()=>{active=false}},[])
+ async function choose(plan){if(!user){onSignIn();return}if(user.role!=='tutor'){setError('Posting plans are available to tutor accounts.');return}setBusy(plan.id);setError('');try{const result=await api('/payments/checkout','POST',{plan:plan.id});const target=new URL(result.checkoutUrl);if(target.protocol!=='https:'||!(target.hostname==='bka.sh'||target.hostname.endsWith('.bka.sh')))throw new Error('The payment link could not be verified.');window.location.assign(target.href)}catch(e){setError(e.message);setBusy('')}}
+ return <div className={`plans-content ${page?'subscription-plans-content':''}`}><div className="plans-grid">{plans.map(plan=><article className={`plan-card plan-${plan.id}`} key={plan.id}><div className="plan-heading"><h4>{plan.name}</h4></div><div className="plan-price"><strong>৳{plan.price_bdt}</strong><span>/ month</span></div><div className="plan-allowance"><strong>{plan.post_limit} posts</strong><span>per billing month</span></div><ul>{offers[plan.id].map(offer=><li key={offer}>{offer}</li>)}<li>Edit published posts anytime</li><li>Posts remain after expiry</li></ul><button className="btn secondary full" disabled={!!busy} onClick={()=>choose(plan)}>{busy===plan.id?'Opening bKash…':'Pay with bKash'}</button></article>)}</div>{error&&<p className="form-error" role="alert">{error}</p>}</div>
+}
+export function PlanIcon(){return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 7 4 4 5-7 5 7 4-4-2 12H5L3 7Zm3 8h12M8 22h8"/></svg>}
+export function PlansShortcut({placement='profile',active=false}){return <a href="#/subscriptions" className={`plans-shortcut ${placement==='header'?'header-plans-shortcut':''} ${active?'is-active':''}`} aria-label="Subscription plans" title="Subscription plans" aria-current={active?'page':undefined}><PlanIcon/></a>}
+function PaymentStatus({user,onSignIn}){
+ const order=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('payment_order'):null
+ const [status,setStatus]=useState(''),[error,setError]=useState(''),[environment,setEnvironment]=useState(''),[retry,setRetry]=useState(0)
+ useEffect(()=>{if(!order||!user)return;let active=true,timer,attempts=0;async function check(){try{const r=await api('/payments/status','POST',{order});if(!active)return;setStatus(r.status);setEnvironment(r.environment);setError('');if(r.status==='pending'&&++attempts<6)timer=setTimeout(check,5000)}catch(e){if(active)setError(e.message)}}check();return()=>{active=false;clearTimeout(timer)}},[order,user,retry])
+ if(!order)return null
+ if(!user)return <div className="payment-result"><button className="btn secondary" onClick={onSignIn}>Sign in to check your payment</button></div>
+ return <div className="payment-result" role="status">{error||({paid:environment==='sandbox'?'Test payment verified. Your real allowance is unchanged.':'Payment verified. Your posting plan is active.',cancelled:'Payment cancelled. Your allowance is unchanged.',failed:'Payment was not completed. Your allowance is unchanged.',pending:'Your payment is awaiting confirmation.'}[status]||'Checking your payment…')}{(error||status==='pending')&&<button className="text-btn" onClick={()=>setRetry(n=>n+1)}>Check again</button>}</div>
+}
+export function SubscriptionPage({user,onSignIn}){return <section className="subscription-page" aria-labelledby="subscription-page-title"><img className="subscription-background" src={subscriptionBackground} alt="" aria-hidden="true" decoding="async" fetchPriority="high"/><div className="subscription-flow" aria-hidden="true"><span/><span/><span/><span/></div><div className="subscription-page-inner"><header className="subscription-page-heading"><h1 id="subscription-page-title">Posting plans</h1></header><PaymentStatus user={user} onSignIn={onSignIn}/><Plans user={user} onSignIn={onSignIn} page/></div></section>}

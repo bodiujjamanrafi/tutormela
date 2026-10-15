@@ -1,0 +1,123 @@
+/* Plan dialog: override the base dialog's 480px cap, not just its preferred width. */
+.modal.plans-modal{box-sizing:border-box;width:min(1020px,calc(100vw - 32px));max-width:1020px;min-width:0;max-height:calc(100dvh - 32px);margin:auto;padding:0;overflow-x:clip;overflow-y:auto;border:1px solid #dce3de;border-radius:14px;background:#fff;scrollbar-gutter:stable}
+.plans-modal .modal-head{position:sticky;top:0;z-index:2;background:#fff;align-items:flex-start;padding:20px 26px 17px;gap:18px;border-bottom:1px solid #e5eae6}
+.plans-modal .modal-head h2{font-size:20px;line-height:1.35;font-weight:500;letter-spacing:-.35px;color:#253c33}
+.plans-modal .modal-head p{font-size:12px;line-height:1.6;margin-top:4px;color:#748078}
+.plans-modal .modal-head .icon-btn{flex-shrink:0;margin:0}
+.plans-content{box-sizing:border-box;padding:24px 26px 22px;container-type:inline-size;container-name:membership;min-width:0}
+.plans-content *{box-sizing:border-box}
+.plans-intro{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 0 22px}
+.plans-intro h3{font-size:23px;line-height:1.3;letter-spacing:-.5px;font-weight:500;color:#213a30;margin:0 0 6px}
+.plans-intro p{font-size:12px;line-height:1.7;margin:0;color:#718075}
+.free-plan-note{font-size:11px;color:#416451;border:1px solid #dce6de;border-radius:6px;padding:8px 11px;flex-shrink:0;background:#f8faf7;line-height:1.4}
+.plans-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.plans-content .plan-card{display:flex;flex-direction:column;min-width:0;padding:23px 21px;border:1px solid #dce4de;border-radius:10px;background:#fff;gap:0}
+.plans-content .plan-card.plan-accent{background:#f3f7f4;border-color:#688e7b}
+.plan-heading{min-width:0}
+.plan-heading h4{font-size:18px;font-weight:500;letter-spacing:-.2px;line-height:1.35;color:#263f33;margin:0 0 5px;overflow-wrap:normal}
+.plan-heading p{font-size:11px;line-height:1.65;color:#78847b;margin:0;min-height:36px}
+.plans-content .plan-price{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;margin:20px 0 18px;white-space:normal}
+.plans-content .plan-price strong{font-size:34px;line-height:1.1;font-weight:500;letter-spacing:-1px;color:#183d2d}
+.plans-content .plan-price span{font-size:11px;line-height:1.5;font-weight:400;letter-spacing:0;color:#7a867c;margin:0}
+.plan-allowance{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 7px;border-block:1px solid #e0e7e1;padding:13px 0;min-width:0}
+.plan-allowance strong{font-size:15px;font-weight:500;line-height:1.5;color:#31543f}
+.plan-allowance span{font-size:11px;line-height:1.6;color:#78847a}
+.plans-content .plan-card ul{list-style:none;display:grid;gap:11px;margin:18px 0 22px;padding:0;flex:1;min-width:0}
+.plans-content .plan-card li{position:relative;font-size:11px;line-height:1.75;color:#647267;padding-left:17px;overflow-wrap:normal}
+.plans-content .plan-card li:before{content:'✓';position:absolute;left:0;top:0;color:#4c775b;font-size:11px}
+.plans-content .plan-card .btn{min-height:40px;padding:10px 12px;font-size:12px;font-weight:500;line-height:1.5;justify-content:space-between;border-radius:6px;min-width:0}
+.plans-content .btn:disabled{opacity:.5;cursor:not-allowed}
+.plan-included{display:flex;align-items:baseline;gap:8px 18px;flex-wrap:wrap;padding:17px 0 14px;border-bottom:1px solid #e8ece7}
+.plan-included>span{font-size:11px;font-weight:500;color:#435b4a}
+.plan-included p{font-size:11px;color:#7b867d;line-height:1.7;margin:0}
+.plan-included i{font-style:normal;padding:0 7px;color:#a6afa7}
+.plans-payment-note{display:flex;align-items:flex-start;gap:8px;margin:15px 0 0;padding:0;background:none;border:0}
+.payment-status-dot{width:5px;height:5px;flex-shrink:0;border-radius:50%;background:#9a986f;margin-top:7px}
+.plans-payment-note p{font-size:11px;line-height:1.75;color:#7b8276;margin:0}
+.plans-payment-note strong{font-weight:500;color:#606a59}
+.plans-footnote{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;margin-top:16px}
+.plans-footnote p{font-size:10px;line-height:1.7;color:#90988e;max-width:540px;margin:0}
+.plans-footnote .text-btn{font-size:11px;line-height:1.6;font-weight:400;flex-shrink:0}
+.plan-success{font-size:12px;line-height:1.75;color:#2e6546;background:#eef7ef;border:1px solid #d6e6d8;border-radius:7px;padding:12px 14px;margin:14px 0 0}
+/* Posting allowance remains a separate control in the tutor workspace. */
+.posting-allowance{border:1px solid #dce5df;border-radius:10px;padding:17px 20px;display:flex;justify-content:space-between;align-items:center;gap:20px;background:#f7f9f6;margin-bottom:22px}
+.posting-allowance span{display:block;font-size:10px;color:#6b7b70;letter-spacing:.04em}
+.posting-allowance strong{font-size:16px;line-height:1.5;color:#294436;font-weight:500;display:block;margin:4px 0}
+.posting-allowance p{font-size:11px;color:#6b786e;line-height:1.6;margin:0}
+.posting-allowance .btn{flex-shrink:0}
+.posting-allowance .btn span{display:inline;color:inherit;font-size:14px}
+.allowance-full{background:#fbf8f0;border-color:#e4ddc8}
+/* Reuse the original fee/profile footer. Social actions do not add another row. */
+.card-footer-actions{display:flex;align-items:center;gap:13px;min-width:0}
+.post-engagement.compact{display:inline-flex;align-items:center;gap:9px;position:relative;flex-shrink:0;height:24px;padding:0;margin:0;border:0;background:none}
+.post-engagement.compact button{display:inline-flex;align-items:center;justify-content:center;gap:5px;flex-shrink:0;height:24px;padding:0;border:0;background:none;cursor:pointer;color:#77867b;line-height:1}
+.post-engagement.compact .post-like{font-size:11px;font-weight:400}
+.post-engagement.compact .post-like.is-liked{color:#1a6a52}
+.post-engagement.compact .post-share{width:22px}
+.post-engagement.compact .post-like:disabled{opacity:.55;cursor:wait}
+.post-engagement.compact button:focus-visible{outline:2px solid #448b6c;outline-offset:4px;border-radius:3px}
+.post-action-error{position:absolute;bottom:calc(100% + 10px);right:0;z-index:3;display:flex;align-items:flex-start;gap:10px;width:220px;max-width:calc(100vw - 60px);padding:10px 12px;margin:0;border:1px solid #ead7d1;border-radius:7px;background:#fff8f4;color:#865b4a;font-size:11px;line-height:1.65;box-shadow:0 5px 18px #203b2b12}
+.post-engagement.compact .post-action-error button{height:18px;width:18px;flex-shrink:0;color:#865b4a}
+.post-engagement .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.compact-feed-card .card-status-preview{display:block;width:100%;min-width:0;max-width:100%;padding:0;margin:0;border:0;background:none;color:#526e5c;font:inherit;line-height:inherit;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.compact-feed-card .card-status-preview:hover{color:#185a43}
+/* Private metrics appear only beneath posts in the tutor's own workspace. */
+.owner-post .post-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;padding:14px 0;margin:18px 0 14px;border-block:1px solid #e6ebe6}
+.post-insights>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:0 16px;border-left:1px solid #e6ebe6}
+.post-insights>div:first-child{padding-left:0;border-left:0}
+.post-insights dt{font-size:11px;color:#829085;line-height:1.5;order:1}
+.post-insights dd{font-size:20px;font-weight:500;letter-spacing:-.4px;line-height:1.3;color:#355642;margin:0}
+.owner-post .owner-post-bottom{margin-top:0}
+.status-reading{padding:24px 28px 27px}
+.status-reading>p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.9;color:#556a5b;margin:0 0 22px}
+.browse-post-state{border:1px solid #e1e7df;border-radius:12px;padding:30px;color:#6a776e;line-height:1.7;font-size:13px}
+.browse-post-state h3{font-size:18px;color:#334e40;font-weight:500}
+.unified-post-grid{align-items:start}
+.unified-post-grid .tutor-card{min-width:0;overflow:hidden}
+.current-page{padding:8px 14px;color:#1a5647;font-size:12px}
+@container membership (max-width:760px){
+ .plans-grid{grid-template-columns:1fr;gap:12px}
+ .plans-content .plan-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 22px;padding:20px 22px}
+ .plan-heading{grid-column:1;grid-row:1}
+ .plan-heading p{min-height:0}
+ .plans-content .plan-price{grid-column:2;grid-row:1;margin:0;align-items:flex-end}
+ .plans-content .plan-price strong{font-size:29px}
+ .plan-allowance{grid-column:1/-1;margin-top:15px;padding:11px 0}
+ .plans-content .plan-card ul{grid-column:1/-1;margin:13px 0 16px;gap:6px}
+ .plans-content .plan-card .btn{grid-column:1/-1}
+ .plans-intro{align-items:flex-start;flex-direction:column;gap:12px;margin-bottom:18px}
+ .plans-intro h3{font-size:22px}
+ .plan-included{display:block}
+ .plan-included p{margin-top:5px}
+ .plans-footnote{flex-direction:column;gap:10px}
+}
+@media(max-width:620px){
+ .modal.plans-modal{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:11px}
+ .plans-modal .modal-head{padding:17px 18px 14px}
+ .plans-modal .modal-head h2{font-size:19px}
+ .plans-modal .modal-head p{font-size:11px}
+ .plans-content{padding:20px 18px}
+ .plans-grid{grid-template-columns:1fr}
+ .plans-intro h3{font-size:21px}
+ .plan-included i{padding:0 4px}
+ .posting-allowance{align-items:flex-start;flex-direction:column;gap:13px;padding:17px}
+ .card-footer-actions{gap:10px}
+ .post-engagement.compact{gap:7px}
+ .owner-post .post-insights{padding:12px 0;margin-block:15px}
+ .post-insights>div{padding-inline:11px}
+ .post-insights dd{font-size:18px}
+ .post-insights dt{font-size:10px}
+ .status-reading{padding:21px}
+}
+@media(max-width:380px){
+ .compact-feed-card .card-footer-actions{gap:7px}
+ .compact-feed-card .profile-link{font-size:10px;gap:4px}
+ .compact-feed-card .profile-link svg{width:14px;height:14px}
+ .compact-feed-card .post-engagement.compact{gap:5px}
+ .compact-feed-card .card-footer .price{font-size:17px}
+ .compact-feed-card .card-footer .price>span{font-size:9px}
+ .plans-content .plan-card{column-gap:14px;padding:18px}
+ .plan-heading h4{font-size:17px}
+ .plan-heading p{font-size:10px}
+ .plans-content .plan-price strong{font-size:27px}
+}

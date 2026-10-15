@@ -16,7 +16,7 @@ try{
  CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text REFERENCES storage.buckets(id),name text,UNIQUE(bucket_id,name));ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;GRANT SELECT,INSERT,DELETE ON storage.objects TO anon,authenticated;`);
  await db.exec('GRANT USAGE ON SCHEMA auth TO supabase_auth_admin; GRANT INSERT ON auth.users TO supabase_auth_admin;');
  const sql=readFileSync('supabase/schema.sql','utf8');await db.exec(sql);check(true,'Complete schema executes on PostgreSQL');await db.exec(sql);check(true,'Schema reruns without dropping data or duplicate policies');
- const feature=readFileSync('supabase/social-login-and-status.sql','utf8');await db.exec(feature);await db.exec(feature);check(true,'Social login, status and email-code schema executes and reruns');
+ const feature=readFileSync('supabase/social-login-and-status.sql','utf8');await db.exec(feature);await db.exec(feature);await db.exec(readFileSync('supabase/community-social.sql','utf8'));check(true,'Social login, status and email-code schema executes and reruns');
  check((await db.query("SELECT count(*) AS n FROM public.tm_catalog WHERE category='districts'")).rows[0].n===64,'All 64 districts are seeded');
  await db.exec('SET ROLE supabase_auth_admin');
  for(const [role,id] of Object.entries(ids)){await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)',[id,`${role}@example.test`,JSON.stringify({name:`Test ${role}`,role:role==='other'?'tutor':role})])}
@@ -82,10 +82,10 @@ try{
  check((await as('anon',null,'SELECT * FROM public.tm_tutor_statuses')).rows.length===1,'Status on an approved teaching profile appears publicly');
  await denied(()=>as('authenticated',ids.tutor,'SELECT public.tm_post_tutor_status($1,true)',['Available for more lessons.']),'Posting cooldown is enforced by the database');
  await denied(()=>as('authenticated',ids.other,'SELECT public.tm_set_status_visibility($1,false)',[statusId]),'Another tutor cannot withdraw your status');
- await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,false)',[statusId]);
+ await as('authenticated',ids.admin,'SELECT public.tm_set_status_visibility($1,false)',[statusId]);
  check((await as('anon',null,'SELECT * FROM public.tm_tutor_statuses')).rows.length===0,'Withdrawn statuses are hidden from public profiles');
- await as('authenticated',ids.tutor,'SELECT public.tm_set_status_visibility($1,true)',[statusId]);
- check((await as('anon',null,'SELECT * FROM public.tm_tutor_statuses')).rows.length===1,'A tutor can restore their withdrawn status');
+ await as('authenticated',ids.admin,'SELECT public.tm_set_status_visibility($1,true)',[statusId]);
+ check((await as('anon',null,'SELECT * FROM public.tm_tutor_statuses')).rows.length===1,'An administrator can restore a removed status');
  await as('authenticated',ids.tutor,'SELECT public.tm_save_tutor($1,false)',[JSON.stringify(body)]);
  check((await as('anon',null,'SELECT * FROM public.tm_tutor_statuses')).rows.length===0,'Statuses are private while their teaching profile is unpublished');
  await db.exec('RESET ROLE');await db.exec('UPDATE tm_private.tm_auth_config SET email_code_enabled=true');
